@@ -1,6 +1,12 @@
 # diff-gaussian-rasterization
 This repo contains the cuda implementation of variables for calculating Gaussian flow (both forward and backward). While the original repo of 3D Gaussian Splatting is [here](https://github.com/graphdeco-inria/diff-gaussian-rasterization). 
 
+## Install
+```bash
+git clone --recursive https://github.com/Zerg-Overmind/diff-gaussian-rasterization
+pip install ./diff-gaussian-rasterization
+```
+
 ```python
 rendered_image, radii, rendered_depth, rendered_alpha, proj_means_2D, conic_2D, gs_per_pixel, weight_per_gs_pixel, x_mu = rasterizer(
         means3D = means3D_final,
