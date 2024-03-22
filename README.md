@@ -7,6 +7,8 @@ git clone --recursive https://github.com/Zerg-Overmind/diff-gaussian-rasterizati
 pip install ./diff-gaussian-rasterization
 ```
 
+## Function
+
 ```python
 rendered_image, radii, rendered_depth, rendered_alpha, proj_means_2D, conic_2D, gs_per_pixel, weight_per_gs_pixel, x_mu = rasterizer(
         means3D = means3D_final,
