@@ -40,6 +40,7 @@ namespace FORWARD
 		int* radii,
 		float* proj_2D,
 		float* conic_2D,
+		float* conic_2D_inv,
 		float* gs_per_pixel,
 		float* weight_per_gs_pixel,
 		float2* points_xy_image,

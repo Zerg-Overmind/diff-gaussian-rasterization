@@ -172,6 +172,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	int* radii,
 	float* proj_2D,
 	float* conic_2D,
+	float* conic_2D_inv,
 	float* gs_per_pixel,
 	float* weight_per_gs_pixel,
 	float2* points_xy_image,
@@ -260,6 +261,10 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	conic_2D[idx*3 + 0] = conic.x;
 	conic_2D[idx*3 + 1] = conic.y;
 	conic_2D[idx*3 + 2] = conic.z;
+
+	conic_2D_inv[idx*3 + 0] = cov.x;
+	conic_2D_inv[idx*3 + 1] = cov.y;
+	conic_2D_inv[idx*3 + 2] = cov.z;
 	// Inverse 2D covariance and opacity neatly pack into one float4
 	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
@@ -464,6 +469,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	int* radii,
 	float* proj_2D,
 	float* conic_2D,
+	float* conic_2D_inv,
 	float* gs_per_pixel,
 	float* weight_per_gs_pixel,
 	float2* means2D,
@@ -495,6 +501,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		radii,
 		proj_2D,
 		conic_2D,
+		conic_2D_inv,
 		gs_per_pixel,
 		weight_per_gs_pixel,
 		means2D,

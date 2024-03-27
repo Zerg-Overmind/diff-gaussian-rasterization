@@ -32,7 +32,7 @@ std::function<char*(size_t N)> resizeFunctional(torch::Tensor& t) {
     return lambda;
 }
 
-std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 RasterizeGaussiansCUDA(
 	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -62,9 +62,10 @@ RasterizeGaussiansCUDA(
   const int H = image_height;
   const int W = image_width;
   const int K = 20;
+
   auto int_opts = means3D.options().dtype(torch::kInt32);
   auto float_opts = means3D.options().dtype(torch::kFloat32);
-  
+
   torch::Tensor out_color = torch::full({NUM_CHANNELS, H, W}, 0.0, float_opts);
   torch::Tensor out_depth = torch::full({1, H, W}, 0.0, float_opts);
   torch::Tensor out_alpha = torch::full({1, H, W}, 0.0, float_opts);
@@ -74,7 +75,7 @@ RasterizeGaussiansCUDA(
   torch::Tensor gs_per_pixel = torch::full({K, H, W}, -1.0, float_opts);
   torch::Tensor weight_per_gs_pixel = torch::full({K, H, W}, 0.0, float_opts);
   torch::Tensor x_mu = torch::full({K, 2, H, W}, 0.0, float_opts);
-  
+  torch::Tensor conic_2D_inv = torch::full({P, 3}, 0.0, float_opts);
 
   
   torch::Device device(torch::kCUDA);
@@ -121,13 +122,14 @@ RasterizeGaussiansCUDA(
 		out_alpha.contiguous().data<float>(),
 		proj_2D.contiguous().data<float>(),
 		conic_2D.contiguous().data<float>(),
+		conic_2D_inv.contiguous().data<float>(),
 		gs_per_pixel.contiguous().data<float>(),
 		weight_per_gs_pixel.contiguous().data<float>(),
 		x_mu.contiguous().data<float>(),
 		radii.contiguous().data<int>(),
 		debug);
   }
-  return std::make_tuple(rendered, out_color, out_depth, out_alpha, radii, geomBuffer, binningBuffer, imgBuffer, proj_2D, conic_2D, gs_per_pixel, weight_per_gs_pixel, x_mu);
+  return std::make_tuple(rendered, out_color, out_depth, out_alpha, radii, geomBuffer, binningBuffer, imgBuffer, proj_2D, conic_2D, conic_2D_inv, gs_per_pixel, weight_per_gs_pixel, x_mu);
 }
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
@@ -149,6 +151,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	const torch::Tensor& dL_dout_alpha,
 	const torch::Tensor& dL_proj_2D,
 	const torch::Tensor& dL_conic_2D,
+	const torch::Tensor& dL_conic_2D_inv,
 	const torch::Tensor& dummy_gs_per_pixel,
 	const torch::Tensor& dummy_weight_per_gs_pixel,
 	const torch::Tensor& grad_x_mu,
@@ -215,6 +218,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  dL_ddepths.contiguous().data<float>(),
 	  dL_proj_2D.contiguous().data<float>(),
 	  dL_conic_2D.contiguous().data<float>(),
+	  dL_conic_2D_inv.contiguous().data<float>(),
 	  dummy_gs_per_pixel.contiguous().data<float>(),
 	  dummy_weight_per_gs_pixel.contiguous().data<float>(),
 	  grad_x_mu.contiguous().data<float>(),
