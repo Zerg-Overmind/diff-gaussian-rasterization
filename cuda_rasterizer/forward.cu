@@ -386,7 +386,7 @@ renderCUDA(
 			if (calc < 20)
 			{
                 gs_per_pixel[calc * H * W + pix_id] = collected_id[j];
-				weight_per_gs_pixel[calc * H * W + pix_id] = weight;
+				weight_per_gs_pixel[calc * H * W + pix_id] = alpha * T;
 				x_mu[calc * H * W + pix_id] = d.x;
 				x_mu[(calc * 2 + 1) * H * W + pix_id] = d.y;
 
