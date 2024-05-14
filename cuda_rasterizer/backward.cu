@@ -149,6 +149,7 @@ __global__ void computeCov2DCUDA(int P,
 	const float tan_fovx, float tan_fovy,
 	const float* view_matrix,
 	const float* dL_dconics,
+	const float* dL_conic_2D,
 	float3* dL_dmeans,
 	float* dL_dcov)
 {
@@ -162,6 +163,8 @@ __global__ void computeCov2DCUDA(int P,
 	// intermediate forward results needed in the backward.
 	float3 mean = means[idx];
 	float3 dL_dconic = { dL_dconics[4 * idx], dL_dconics[4 * idx + 1], dL_dconics[4 * idx + 3] };
+	// from conic_2D directly
+	float3 dL_dconic2 = { dL_conic_2D[3 * idx], dL_conic_2D[3 * idx + 1], dL_conic_2D[3 * idx + 2] };
 	float3 t = transformPoint4x3(mean, view_matrix);
 	
 	const float limx = 1.3f * tan_fovx;
@@ -206,9 +209,13 @@ __global__ void computeCov2DCUDA(int P,
 		// Gradients of loss w.r.t. entries of 2D covariance matrix,
 		// given gradients of loss w.r.t. conic matrix (inverse covariance matrix).
 		// e.g., dL / da = dL / d_conic_a * d_conic_a / d_a
-		dL_da = denom2inv * (-c * c * dL_dconic.x + 2 * b * c * dL_dconic.y + (denom - a * c) * dL_dconic.z);
-		dL_dc = denom2inv * (-a * a * dL_dconic.z + 2 * a * b * dL_dconic.y + (denom - a * c) * dL_dconic.x);
-		dL_db = denom2inv * 2 * (b * c * dL_dconic.x - (denom + 2 * b * b) * dL_dconic.y + a * b * dL_dconic.z);
+		// dL_da = denom2inv * (-c * c * dL_dconic.x + 2 * b * c * dL_dconic.y + (denom - a * c) * dL_dconic.z);
+		// dL_dc = denom2inv * (-a * a * dL_dconic.z + 2 * a * b * dL_dconic.y + (denom - a * c) * dL_dconic.x) ;
+		// dL_db = denom2inv * 2 * (b * c * dL_dconic.x - (denom + 2 * b * b) * dL_dconic.y + a * b * dL_dconic.z);
+
+		dL_da = denom2inv * (-c * c * dL_dconic.x + 2 * b * c * dL_dconic.y + (denom - a * c) * dL_dconic.z) + denom2inv * (-c * c * dL_dconic2.x + 2 * b * c * dL_dconic2.y + (denom - a * c) * dL_dconic2.z);
+		dL_dc = denom2inv * (-a * a * dL_dconic.z + 2 * a * b * dL_dconic.y + (denom - a * c) * dL_dconic.x) + denom2inv * (-a * a * dL_dconic2.z + 2 * a * b * dL_dconic2.y + (denom - a * c) * dL_dconic2.x);
+		dL_db = denom2inv * 2 * (b * c * dL_dconic.x - (denom + 2 * b * b) * dL_dconic.y + a * b * dL_dconic.z) + denom2inv * 2 * (b * c * dL_dconic2.x - (denom + 2 * b * b) * dL_dconic2.y + a * b * dL_dconic2.z);
 
 		// Gradients of loss L w.r.t. each 3D covariance matrix (Vrk) entry, 
 		// given gradients w.r.t. 2D covariance matrix (diagonal).
@@ -389,6 +396,14 @@ __global__ void preprocessCUDA(
 	dL_dmean.y = (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
 	dL_dmean.z = (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
 
+    // Compute loss gradient w.r.t. 3D means due to gradients of 2D means (dL_proj_2D) 
+	// from rendering procedure
+    glm::vec3 dL_dmean0;
+	dL_dmean0.x = (proj[0] * m_w - proj[3] * mul1) * dL_proj_2D[idx*2 + 0] + (proj[1] * m_w - proj[3] * mul2) * dL_proj_2D[idx*2 + 1];
+	dL_dmean0.y = (proj[4] * m_w - proj[7] * mul1) * dL_proj_2D[idx*2 + 0] + (proj[5] * m_w - proj[7] * mul2) * dL_proj_2D[idx*2 + 1];
+	dL_dmean0.z = (proj[8] * m_w - proj[11] * mul1) * dL_proj_2D[idx*2 + 0] + (proj[9] * m_w - proj[11] * mul2) * dL_proj_2D[idx*2 + 1];
+
+
 	// That's the second part of the mean gradient. Previous computation
 	// of cov2D and following SH conversion also affects it.
 	dL_dmeans[idx] += dL_dmean;
@@ -566,11 +581,11 @@ renderCUDA(
 				// many that were affected by this Gaussian.
 				atomicAdd(&(dL_dcolors[global_id * C + ch]), dchannel_dcolor * dL_dchannel);
 			}
-			//for (int ch_var = 0; ch_var < 20; ch_var++)
-			//{
-			//	atomicAdd(&(dummy_gs_per_pixel[global_id * 20 + ch_var]), 0.0);
-			//	atomicAdd(&(dummy_weight_per_gs_pixel[global_id * 20 + ch_var]), 0.0);
-			//}
+			for (int ch_var = 0; ch_var < 20; ch_var++)
+			{
+				// atomicAdd(&(dummy_gs_per_pixel[global_id * 20 + ch_var]), 0.0);
+				atomicAdd(&(dummy_weight_per_gs_pixel[global_id * 20 + ch_var]), alpha * T);
+			}
 
 			// Propagate gradients from pixel depth to opacity
 			const float c_d = collected_depths[j];
@@ -674,6 +689,7 @@ void BACKWARD::preprocess(
 		tan_fovy,
 		viewmatrix,
 		dL_dconic,
+		dL_conic_2D,
 		(float3*)dL_dmean3D,
 		dL_dcov3D);
 
